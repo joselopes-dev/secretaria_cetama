@@ -20,6 +20,9 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 import pickle
 
+from flask import Flask
+import threading
+
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton
 from telegram.ext import (
     Application,
@@ -34,7 +37,7 @@ from telegram.ext import (
 # CONFIGURAÇÕES
 # ============================================================
 # Coloque o token do BotFather aqui (ou use variável de ambiente)
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8609155244:AAH3yiF7bgEVVtVJSxVCgC94DDSTs2qUQ5I")
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 DB_NAME = "secretaria_escolar.db"
 MODEL_FILE = "modelo_intencoes.pkl"
@@ -755,5 +758,14 @@ def main():
     print("🤖 Bot rodando... Pressione Ctrl+C para parar.")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
+web = Flask(__name__)
+@web.route('/')
+def home():
+    return "Bot secretaria no ar!"
+
+def run_web():
+    web.run(host='0.0.0.0', port=10000)
+
 if __name__ == "__main__":
+threading.Thread(target=run_web).start()
     main()
