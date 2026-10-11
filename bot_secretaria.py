@@ -753,11 +753,22 @@ def main():
     )
 
     application.add_handler(conv_handler)
-    application.add_error_handler(erro_handler)
+application.add_error_handler(erro_handler)
 
+web = Flask(__name__)
+
+@web.route('/')
+def home():
+    return "Bot secretaria no ar!"
+
+def run_web():
+    web.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+
+def main():
     print("🤖 Bot rodando... Pressione Ctrl+C para parar.")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-web = Flask(__name__)
-@web.route('/')
+if __name__ == "__main__":
+    threading.Thread(target=run_web).start()
+    main()
 
