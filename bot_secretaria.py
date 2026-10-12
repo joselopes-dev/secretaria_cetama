@@ -481,7 +481,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     memoria.aluno = None
     await update.message.reply_text(
         "🏫 *Assistente Virtual da Secretaria Escolar*\n\n"
-        "Olá! Para iniciar o atendimento, digite sua *matrícula escolar*.\n\n"
+        "Olá! Para iniciar o atendimento, digite sua *matrícula escolar*.\n\n",
         
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardRemove(),
