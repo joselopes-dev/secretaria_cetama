@@ -3,7 +3,7 @@
 Assistente Virtual de Secretaria Escolar
 Versão 2.0 - Telegram Bot (Render-ready)
 """
-
+import asyncio
 import sqlite3
 import os
 import logging
@@ -720,7 +720,10 @@ def run_bot():
     application.add_error_handler(erro_handler)
 
     logger.info("🤖 Bot Telegram iniciando polling...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    # ESSAS 2 LINHAS NOVAS CORRIGEM O ERRO DO SEU PRINT
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, close_loop=False)
 
 if __name__ == "__main__":
     # Inicia o bot em thread daemon (não bloqueia o Flask)
