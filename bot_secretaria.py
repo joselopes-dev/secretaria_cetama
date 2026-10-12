@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """
 Assistente Virtual de Secretaria Escolar
-Versão 2.0 - Telegram Bot
-- Validação de matrícula
-- Consulta de notas e faltas
-- Solicitação de atendimento humano
-- Conversa livre com Machine Learning (scikit-learn)
-- Memória de curto prazo + histórico persistente no SQLite
+Versão 2.0 - Telegram Bot (Render-ready)
 """
 
 import sqlite3
 import os
 import logging
+import threading
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple
 
@@ -21,8 +17,6 @@ from sklearn.pipeline import Pipeline
 import pickle
 
 from flask import Flask
-import threading
-
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton
 from telegram.ext import (
     Application,
@@ -36,13 +30,11 @@ from telegram.ext import (
 # ============================================================
 # CONFIGURAÇÕES
 # ============================================================
-# Coloque o token do BotFather aqui (ou use variável de ambiente)
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
 DB_NAME = "secretaria_escolar.db"
 MODEL_FILE = "modelo_intencoes.pkl"
+PORT = int(os.environ.get("PORT", 10000))
 
-# Estados da conversa
 (
     AGUARDANDO_MATRICULA,
     MENU_PRINCIPAL,
@@ -63,10 +55,8 @@ logger = logging.getLogger(__name__)
 # BANCO DE DADOS
 # ============================================================
 def criar_banco():
-    """Cria o banco SQLite e as tabelas se não existirem."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS alunos (
             matricula TEXT PRIMARY KEY,
@@ -76,7 +66,6 @@ def criar_banco():
             ensino TEXT NOT NULL
         )
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,7 +76,6 @@ def criar_banco():
             FOREIGN KEY (matricula) REFERENCES alunos(matricula)
         )
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS faltas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,7 +86,6 @@ def criar_banco():
             FOREIGN KEY (matricula) REFERENCES alunos(matricula)
         )
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,7 +97,6 @@ def criar_banco():
             FOREIGN KEY (matricula) REFERENCES alunos(matricula)
         )
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS atendimento_humano (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,12 +107,10 @@ def criar_banco():
             FOREIGN KEY (matricula) REFERENCES alunos(matricula)
         )
     """)
-
     conn.commit()
     conn.close()
 
 def popular_dados_demonstracao():
-    """Insere dados fictícios de demonstração (só se o banco estiver vazio)."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM alunos")
@@ -135,11 +119,11 @@ def popular_dados_demonstracao():
         return
 
     alunos = [
-        ("2024001", "Roberto Cruz", "2º semestre", "IA", "Téc. IA"),
-        ("2024002", "João Pedro Oliveira", "1º ano", "B", "Ensino Médio"),
-        ("2024003", "Ana Beatriz Costa", "3º ano", "A", "Ensino Médio"),
-        ("2024004", "Lucas Ferreira", "2º ano", "B", "Ensino Médio"),
-        ("2024005", "Sofia Mendes", "1º ano", "A", "Ensino Fundamental"),
+        ("2024001", "Roberto Cruz", "2º Semestre", "IA", "Téc. IA"),
+        ("2024002", "José Maria Lopes", "2º Semestre", "IA", "Téc. IA"),
+        ("2024003", "Pedro", "2º Semestre", "IA", "Téc. IA"),
+        ("2024004", "Lucas Ferreira", "2º Semestre", "IA", "Téc. IA"),
+        ("2024005", "Sofia Mendes", "2º Semestre", "IA", "Téc. IA"),
     ]
     cursor.executemany(
         "INSERT INTO alunos (matricula, nome, serie, turma, ensino) VALUES (?, ?, ?, ?, ?)",
@@ -157,9 +141,43 @@ def popular_dados_demonstracao():
         ("2024001", "Rede neurais artificiais e Deep Learning", "2º Semestre", 9.0),
         ("2024001", "Processamento de Linguagem Natural (PLN) Chatbots", "2º Semestre", 0.0),
         ("2024001", "Prática Profissional Supervissionada I", "2º Semestre", 0.0),
+        ("2024001", "Noções de Segurança, Governança de dados LGPD aplicada a dados", "3º Semestre", 0.0),
+        ("2024001", "Engenharia de solftware para IA", "3º Semestre", 0.0),
+        ("2024001", "MLOPS e Deploy", "3º Semestre", 0.0),
+        ("2024001", "Planejamento de assistentes em inteligência artificial", "3º Semestre", 0.0),
+        ("2024001", "LLMS e Inteligência Artificaial", "3º Semestre", 0.0),
+        ("2024001", "Visão Computacional Aplicada", "3º Semestre", 0.0),
+        ("2024001", "Prática Profissional Supervissionada II", "3º Semestre", 0.0),
+        ("2024002", "Lógica de programação", "1º Semestre", 8.5),
+        ("2024002", "Linguagem de programação (PYTHON)", "1º Semestre", 7.0),
+        ("2024002", "Banco de dados e Big data", "1º Semestre", 9.0),
+        ("2024002", "Matemática e Estatística aplicada à IA", "1º Semestre", 8.5),
+        ("2024002", "Fundamentos de IA e Aprendizado de Máquina", "1º Semestre", 7.5),
+        ("2024002", "Python para ciência de dados", "2º Semestre", 8.0),
+        ("2024002", "Machine Learning aplicada", "2º Semestre", 9.5),
+        ("2024002", "Rede neurais artificiais e Deep Learning", "2º Semestre", 9.0),
+        ("2024002", "Processamento de Linguagem Natural (PLN) Chatbots", "2º Semestre", 0.0),
+        ("2024002", "Prática Profissional Supervissionada I", "2º Semestre", 0.0),
         ("2024002", "Noções de Segurança, Governança de dados LGPD aplicada a dados", "3º Semestre", 0.0),
         ("2024002", "Engenharia de solftware para IA", "3º Semestre", 0.0),
         ("2024002", "MLOPS e Deploy", "3º Semestre", 0.0),
+        ("2024002", "Planejamento de assistentes em inteligência artificial", "3º Semestre", 0.0),
+        ("2024002", "LLMS e Inteligência Artificaial", "3º Semestre", 0.0),
+        ("2024002", "Visão Computacional Aplicada", "3º Semestre", 0.0),
+        ("2024002", "Prática Profissional Supervissionada II", "3º Semestre", 0.0),
+        ("2024003", "Lógica de programação", "1º Semestre", 8.5),
+        ("2024003", "Linguagem de programação (PYTHON)", "1º Semestre", 7.0),
+        ("2024003", "Banco de dados e Big data", "1º Semestre", 9.0),
+        ("2024003", "Matemática e Estatística aplicada à IA", "1º Semestre", 8.5),
+        ("2024003", "Fundamentos de IA e Aprendizado de Máquina", "1º Semestre", 7.5),
+        ("2024003", "Python para ciência de dados", "2º Semestre", 8.0),
+        ("2024003", "Machine Learning aplicada", "2º Semestre", 9.5),
+        ("2024003", "Rede neurais artificiais e Deep Learning", "2º Semestre", 9.0),
+        ("2024003", "Processamento de Linguagem Natural (PLN) Chatbots", "2º Semestre", 0.0),
+        ("2024003", "Prática Profissional Supervissionada I", "2º Semestre", 0.0),
+        ("2024003", "Noções de Segurança, Governança de dados LGPD aplicada a dados", "3º Semestre", 0.0),
+        ("2024003", "Engenharia de solftware para IA", "3º Semestre", 0.0),
+        ("2024003", "MLOPS e Deploy", "3º Semestre", 0.0),
         ("2024003", "Planejamento de assistentes em inteligência artificial", "3º Semestre", 0.0),
         ("2024003", "LLMS e Inteligência Artificaial", "3º Semestre", 0.0),
         ("2024003", "Visão Computacional Aplicada", "3º Semestre", 0.0),
@@ -171,18 +189,17 @@ def popular_dados_demonstracao():
     )
 
     faltas = [
-        ("2024001", "Matemática", "2024-03-12", "Consulta médica"),
-        ("2024001", "Português", "2024-04-05", None),
-        ("2024001", "História", "2024-05-20", "Atestado"),
-        ("2024002", "Matemática", "2024-03-15", None),
-        ("2024002", "Português", "2024-04-10", "Problema de transporte"),
-        ("2024003", "Física", "2024-03-22", "Consulta médica"),
+        ("2024001", "(PLN) Chatbots", "2024-03-12", "Consulta médica"),
+        ("2024001", "(PLN) Chatbots", "2024-04-05", None),
+        ("2024001", "(PLN) Chatbots", "2024-05-20", "Atestado"),
+        ("2024002", "(PLN) Chatbots", "2024-03-15", None),
+        ("2024002", "(PLN) Chatbots", "2024-04-10", "Problema de transporte"),
+        ("2024003", "(PLN) Chatbots", "2024-03-22", "Consulta médica"),
     ]
     cursor.executemany(
         "INSERT INTO faltas (matricula, disciplina, data, justificativa) VALUES (?, ?, ?, ?)",
         faltas,
     )
-
     conn.commit()
     conn.close()
     logger.info("Dados de demonstração inseridos com sucesso.")
@@ -249,43 +266,10 @@ def salvar_historico(matricula: str, msg_usuario: str, msg_bot: str, tipo: str =
         INSERT INTO historico (matricula, data_hora, mensagem_usuario, mensagem_bot, tipo)
         VALUES (?, ?, ?, ?, ?)
         """,
-        (
-            matricula,
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            msg_usuario,
-            msg_bot,
-            tipo,
-        ),
+        (matricula, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg_usuario, msg_bot, tipo),
     )
     conn.commit()
     conn.close()
-
-def recuperar_historico(matricula: str, limite: int = 5) -> List[Dict]:
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT data_hora, mensagem_usuario, mensagem_bot, tipo
-        FROM historico
-        WHERE matricula = ?
-        ORDER BY id DESC
-        LIMIT ?
-        """,
-        (matricula, limite),
-    )
-    rows = cursor.fetchall()
-    conn.close()
-    historico = []
-    for row in reversed(rows):
-        historico.append(
-            {
-                "data_hora": row[0],
-                "usuario": row[1],
-                "bot": row[2],
-                "tipo": row[3],
-            }
-        )
-    return historico
 
 def registrar_atendimento_humano(matricula: str, motivo: str):
     conn = sqlite3.connect(DB_NAME)
@@ -371,15 +355,11 @@ def treinar_modelo():
     ]
     textos = [e[0] for e in exemplos]
     labels = [e[1] for e in exemplos]
-
-    pipeline = Pipeline(
-        [
-            ("tfidf", TfidfVectorizer(ngram_range=(1, 2), min_df=1)),
-            ("clf", MultinomialNB()),
-        ]
-    )
+    pipeline = Pipeline([
+        ("tfidf", TfidfVectorizer(ngram_range=(1, 2), min_df=1)),
+        ("clf", MultinomialNB()),
+    ])
     pipeline.fit(textos, labels)
-
     with open(MODEL_FILE, "wb") as f:
         pickle.dump(pipeline, f)
     return pipeline
@@ -394,20 +374,19 @@ def prever_intencao(modelo, texto: str) -> str:
     return modelo.predict([texto.lower().strip()])[0]
 
 # ============================================================
-# MEMÓRIA DE SESSÃO (por usuário Telegram)
+# MEMÓRIA DE SESSÃO
 # ============================================================
 class MemoriaSessao:
     def __init__(self):
         self.contexto = []
         self.ultima_intencao = None
-        self.aluno = None  # dados do aluno autenticado
+        self.aluno = None
 
     def adicionar(self, usuario: str, bot: str):
         self.contexto.append((usuario, bot))
         if len(self.contexto) > 10:
             self.contexto.pop(0)
 
-# Armazena memória por chat_id
 sessoes: Dict[int, MemoriaSessao] = {}
 
 def get_memoria(chat_id: int) -> MemoriaSessao:
@@ -416,7 +395,7 @@ def get_memoria(chat_id: int) -> MemoriaSessao:
     return sessoes[chat_id]
 
 # ============================================================
-# RESPOSTAS DO BOT
+# RESPOSTAS
 # ============================================================
 def formatar_notas(matricula: str) -> str:
     notas = consultar_notas(matricula)
@@ -480,7 +459,7 @@ def responder_intencao(intencao: str, aluno: Dict) -> str:
         )
 
 # ============================================================
-# TECLADOS (Reply Keyboard)
+# TECLADOS
 # ============================================================
 def teclado_menu() -> ReplyKeyboardMarkup:
     keyboard = [
@@ -491,33 +470,27 @@ def teclado_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def teclado_voltar() -> ReplyKeyboardMarkup:
-    keyboard = [[KeyboardButton("⬅️ Voltar ao menu")]]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup([[KeyboardButton("⬅️ Voltar ao menu")]], resize_keyboard=True)
 
 # ============================================================
-# HANDLERS DO TELEGRAM
+# HANDLERS
 # ============================================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Inicia o bot e pede a matrícula."""
     chat_id = update.effective_chat.id
     memoria = get_memoria(chat_id)
-    memoria.aluno = None  # reseta sessão
-
+    memoria.aluno = None
     await update.message.reply_text(
         "🏫 *Assistente Virtual da Secretaria Escolar*\n\n"
         "Olá! Para iniciar o atendimento, digite sua *matrícula escolar*.\n\n"
-        "Matrículas de demonstração:\n"
-        "`2024001`, `2024002`, `2024003`, `2024004`, `2024005`",
+        
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardRemove(),
     )
     return AGUARDANDO_MATRICULA
 
 async def receber_matricula(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Valida a matrícula digitada."""
     chat_id = update.effective_chat.id
     texto = update.message.text.strip()
-
     if not texto:
         await update.message.reply_text("⚠️ Matrícula não pode ser vazia. Tente novamente.")
         return AGUARDANDO_MATRICULA
@@ -533,13 +506,11 @@ async def receber_matricula(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     memoria = get_memoria(chat_id)
     memoria.aluno = aluno
-
     saudacao = (
         f"✅ Bem-vindo(a), *{aluno['nome']}*!\n"
         f"{aluno['ensino']} • {aluno['serie']} • Turma {aluno['turma']}"
     )
     salvar_historico(aluno["matricula"], "[Início da sessão]", saudacao, "sistema")
-
     await update.message.reply_text(
         saudacao + "\n\nComo posso ajudar você?",
         parse_mode="Markdown",
@@ -548,18 +519,15 @@ async def receber_matricula(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return MENU_PRINCIPAL
 
 async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Processa a escolha do menu principal."""
     chat_id = update.effective_chat.id
     memoria = get_memoria(chat_id)
     aluno = memoria.aluno
-
     if not aluno:
         await update.message.reply_text("Sessão expirada. Digite /start para começar.")
         return ConversationHandler.END
 
     texto = update.message.text.strip().lower()
 
-    # Opções do teclado
     if "consultar notas" in texto or texto == "1":
         resp = formatar_notas(aluno["matricula"])
         await update.message.reply_text(resp, parse_mode="Markdown")
@@ -607,7 +575,6 @@ async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return ConversationHandler.END
 
     else:
-        # Tenta classificar com ML mesmo no menu
         modelo = context.bot_data["modelo"]
         intencao = prever_intencao(modelo, texto)
         if intencao == "atendimento_humano":
@@ -624,22 +591,16 @@ async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return MENU_PRINCIPAL
 
 async def conversa_livre(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Modo conversa livre com classificação de intenções."""
     chat_id = update.effective_chat.id
     memoria = get_memoria(chat_id)
     aluno = memoria.aluno
-
     if not aluno:
         await update.message.reply_text("Sessão expirada. Digite /start para começar.")
         return ConversationHandler.END
 
     texto = update.message.text.strip()
-
-    if texto.lower() in ("voltar", "menu", "sair", "⬅️ voltar ao menu") or "voltar" in texto.lower():
-        await update.message.reply_text(
-            "Retornando ao menu principal.",
-            reply_markup=teclado_menu(),
-        )
+    if texto.lower() in ("voltar", "menu", "sair") or "voltar" in texto.lower():
+        await update.message.reply_text("Retornando ao menu principal.", reply_markup=teclado_menu())
         return MENU_PRINCIPAL
 
     modelo = context.bot_data["modelo"]
@@ -660,31 +621,21 @@ async def conversa_livre(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     memoria.ultima_intencao = intencao
 
     if intencao == "despedida":
-        await update.message.reply_text(
-            "Encerrando conversa. Até logo! 👋",
-            reply_markup=teclado_menu(),
-        )
+        await update.message.reply_text("Encerrando conversa. Até logo! 👋", reply_markup=teclado_menu())
         return MENU_PRINCIPAL
-
     return CONVERSA_LIVRE
 
 async def receber_motivo_atendimento(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recebe o motivo do atendimento humano."""
     chat_id = update.effective_chat.id
     memoria = get_memoria(chat_id)
     aluno = memoria.aluno
-
     if not aluno:
         await update.message.reply_text("Sessão expirada. Digite /start para começar.")
         return ConversationHandler.END
 
     motivo = update.message.text.strip()
-
     if motivo.lower() in ("cancelar", "sair", "voltar", "") or "voltar" in motivo.lower():
-        await update.message.reply_text(
-            "Solicitação cancelada.",
-            reply_markup=teclado_menu(),
-        )
+        await update.message.reply_text("Solicitação cancelada.", reply_markup=teclado_menu())
         return MENU_PRINCIPAL
 
     registrar_atendimento_humano(aluno["matricula"], motivo)
@@ -700,7 +651,6 @@ async def receber_motivo_atendimento(update: Update, context: ContextTypes.DEFAU
     return MENU_PRINCIPAL
 
 async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Cancela a conversa."""
     chat_id = update.effective_chat.id
     memoria = get_memoria(chat_id)
     memoria.aluno = None
@@ -714,21 +664,32 @@ async def erro_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.error("Exception while handling an update:", exc_info=context.error)
 
 # ============================================================
-# MAIN
+# FLASK (health check para o Render)
 # ============================================================
-def main():
-    if TOKEN == "SEU_TOKEN_AQUI":
-        print("❌ Configure o TOKEN do bot!")
-        print("   1. Fale com @BotFather no Telegram")
-        print("   2. Crie um bot e copie o token")
-        print("   3. Coloque no código ou na variável de ambiente TELEGRAM_BOT_TOKEN")
+web = Flask(__name__)
+
+@web.route("/")
+def home():
+    return "✅ Bot Secretaria Escolar no ar!"
+
+@web.route("/health")
+def health():
+    return "ok", 200
+
+# ============================================================
+# MAIN – Render ready
+# ============================================================
+def run_bot():
+    """Roda o bot Telegram em thread separada."""
+    if not TOKEN:
+        logger.error("❌ TELEGRAM_BOT_TOKEN não definido! Configure a variável de ambiente.")
         return
 
-    print("Inicializando sistema...")
+    logger.info("Inicializando banco e modelo...")
     criar_banco()
     popular_dados_demonstracao()
     modelo = carregar_modelo()
-    print("✅ Sistema pronto!")
+    logger.info("✅ Sistema pronto!")
 
     application = Application.builder().token(TOKEN).build()
     application.bot_data["modelo"] = modelo
@@ -749,26 +710,24 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receber_motivo_atendimento)
             ],
         },
-        fallbacks=[CommandHandler("cancel", cancelar), CommandHandler("start", start)],
+        fallbacks=[
+            CommandHandler("cancel", cancelar),
+            CommandHandler("start", start),
+        ],
     )
 
     application.add_handler(conv_handler)
-application.add_error_handler(erro_handler)
+    application.add_error_handler(erro_handler)
 
-web = Flask(__name__)
-
-@web.route('/')
-def home():
-    return "Bot secretaria no ar!"
-
-def run_web():
-    web.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
-
-def main():
-    print("🤖 Bot rodando... Pressione Ctrl+C para parar.")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    logger.info("🤖 Bot Telegram iniciando polling...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_web).start()
-    main()
+    # Inicia o bot em thread daemon (não bloqueia o Flask)
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+
+    # Flask fica na thread principal (Render exige escutar a porta)
+    logger.info(f"🌐 Flask rodando na porta {PORT}")
+    web.run(host="0.0.0.0", port=PORT)
 
