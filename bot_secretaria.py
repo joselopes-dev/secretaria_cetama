@@ -475,17 +475,24 @@ def teclado_voltar() -> ReplyKeyboardMarkup:
 # ============================================================
 # HANDLERS
 # ============================================================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     chat_id = update.effective_chat.id
     memoria = get_memoria(chat_id)
     memoria.aluno = None
+
+    mensagem = (
+        "🏫 *Assistente Virtual da Secretaria Escolar*\n\n"
+        "Olá! Para iniciar o atendimento, digite sua "
+        "*matrícula escolar*.\n\n"
+    )
+
     await update.message.reply_text(
-        "🏫 *Assistente Virtual da Secretaria Escolar*\n\n",
-        "Olá! Para iniciar o atendimento, digite sua *matrícula escolar*.\n\n",
-        
+        mensagem,
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardRemove(),
     )
+
     return AGUARDANDO_MATRICULA
 
 async def receber_matricula(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
