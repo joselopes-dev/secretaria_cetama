@@ -720,17 +720,19 @@ def run_bot():
     application.add_error_handler(erro_handler)
 
     logger.info("🤖 Bot Telegram iniciando polling...")
-    # ESSAS 2 LINHAS NOVAS CORRIGEM O ERRO DO SEU PRINT
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    
     application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, close_loop=False)
 
-if __name__ == "__main__":
-    # Inicia o bot em thread daemon (não bloqueia o Flask)
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
-
-    # Flask fica na thread principal (Render exige escutar a porta)
+def run_flask():
+    """Roda o Flask em thread separada"""
     logger.info(f"🌐 Flask rodando na porta {PORT}")
     web.run(host="0.0.0.0", port=PORT)
+
+if __name__ == "__main__":
+    # Flask vai pra thread secundária
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
+    # Bot fica na thread PRINCIPAL - corrige o erro set_wakeup_fd
+    run_bot()
 
