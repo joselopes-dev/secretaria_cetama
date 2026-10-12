@@ -480,7 +480,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     memoria = get_memoria(chat_id)
     memoria.aluno = None
     await update.message.reply_text(
-        "🏫 *Assistente Virtual da Secretaria Escolar*\n\n"
+        "🏫 *Assistente Virtual da Secretaria Escolar*\n\n",
         "Olá! Para iniciar o atendimento, digite sua *matrícula escolar*.\n\n",
         
         parse_mode="Markdown",
