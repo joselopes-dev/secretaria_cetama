@@ -721,7 +721,7 @@ def run_bot():
 
     logger.info("🤖 Bot Telegram iniciando polling...")
     
-    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, close_loop=False)
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 def run_flask():
     """Roda o Flask em thread separada"""
