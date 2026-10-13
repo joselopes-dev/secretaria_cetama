@@ -120,7 +120,7 @@ def popular_dados_demonstracao():
 
     alunos = [
         ("2024001", "Roberto Cruz", "2º Semestre", "IA", "Téc. IA"),
-        ("2024002", "José Maria Lopes", "2º Semestre", "IA", "Téc. IA"),
+        ("2024002", "José Lopes", "2º Semestre", "IA", "Téc. IA"),
         ("2024003", "Pedro", "2º Semestre", "IA", "Téc. IA"),
         ("2024004", "Lucas Ferreira", "2º Semestre", "IA", "Téc. IA"),
         ("2024005", "Sofia Mendes", "2º Semestre", "IA", "Téc. IA"),
