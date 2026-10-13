@@ -234,7 +234,17 @@ def consultar_notas(matricula: str) -> List[Tuple]:
         SELECT disciplina, periodo, nota
         FROM notas
         WHERE matricula = ?
-        ORDER BY disciplina, periodo
+        ORDER BY
+            CASE periodo
+                WHEN '1º Semestre' THEN 1
+                WHEN '2º Semestre' THEN 2
+                WHEN '3º Semestre' THEN 3
+                WHEN '4º Semestre' THEN 4
+                WHEN '5º Semestre' THEN 5
+                WHEN '6º Semestre' THEN 6
+                ELSE 99
+            END,
+            id
         """,
         (matricula,),
     )
@@ -742,4 +752,3 @@ if __name__ == "__main__":
     
     # Bot fica na thread PRINCIPAL - corrige o erro set_wakeup_fd
     run_bot()
-
