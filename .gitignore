@@ -1,6 +1,5 @@
 .env
 __pycache__/
 *.db
-*.pkl
 venv/
-secretaria_escola.db
+secretaria_escolar.db
